@@ -1,0 +1,1174 @@
+﻿<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>אימפריאל</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --green: #2d6a4f;
+    --green-light: #40916c;
+    --green-pale: #d8f3dc;
+    --orange: #e07b39;
+    --orange-light: #f4a261;
+    --bg: #f8f5f0;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --text-muted: #6b7280;
+    --border: #e5e0d8;
+    --radius: 16px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; direction: rtl; }
+
+  .header { background: var(--green); color: white; padding: 20px 24px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+  .header-icon { font-size: 28px; }
+  .header-title { font-size: 20px; font-weight: 700; }
+  .header-sub { font-size: 13px; opacity: 0.8; font-weight: 300; }
+
+  .page { display: none; padding: 24px 16px; max-width: 600px; margin: 0 auto; }
+  .page.active { display: block; }
+
+  .card { background: var(--card); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); margin-bottom: 16px; }
+  .card-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--green); display: flex; align-items: center; gap: 8px; }
+
+  .form-group { margin-bottom: 18px; }
+  label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px; color: var(--text); }
+  input, textarea, select { width: 100%; padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: 'Heebo', sans-serif; font-size: 15px; color: var(--text); background: #fafafa; transition: border-color 0.2s; direction: rtl; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--green-light); background: white; }
+  textarea { resize: vertical; min-height: 100px; }
+
+  /* IMAGE UPLOAD */
+  .img-upload-area {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fafafa;
+  }
+  .img-upload-area:hover { border-color: var(--green-light); background: var(--green-pale); }
+  .img-upload-area.has-image { border-color: var(--green); border-style: solid; }
+  .img-upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .img-upload-text { font-size: 14px; color: var(--text-muted); }
+  .img-preview { width: 100%; max-height: 200px; object-fit: cover; border-radius: 8px; margin-top: 12px; display: none; }
+  .img-preview.show { display: block; }
+  .img-remove { font-size: 12px; color: #dc2626; cursor: pointer; margin-top: 8px; display: none; }
+  .img-remove.show { display: inline-block; }
+  #fileInput { display: none; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 24px; border: none; border-radius: 10px; font-family: 'Heebo', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%; }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-primary:hover { background: var(--green-light); transform: translateY(-1px); }
+  .btn-primary:disabled { background: #9ca3af; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: var(--border); color: var(--text); }
+  .btn-sm { padding: 7px 14px; font-size: 13px; width: auto; }
+  .btn-danger { background: #fee2e2; color: #dc2626; }
+
+  .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+  .badge-new { background: #dbeafe; color: #1d4ed8; }
+  .badge-progress { background: #fef3c7; color: #92400e; }
+  .badge-ready { background: #d1fae5; color: #065f46; }
+
+  .success-icon { font-size: 64px; text-align: center; margin: 16px 0; }
+  .ticket-box { background: var(--green-pale); border: 2px dashed var(--green-light); border-radius: 12px; padding: 20px; text-align: center; margin: 20px 0; }
+  .ticket-id { font-size: 28px; font-weight: 900; color: var(--green); letter-spacing: 2px; }
+  .ticket-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+  .status-timeline { display: flex; flex-direction: column; gap: 0; margin: 20px 0; }
+  .status-step { display: flex; gap: 14px; align-items: flex-start; }
+  .status-step-line { display: flex; flex-direction: column; align-items: center; }
+  .status-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); background: white; flex-shrink: 0; margin-top: 2px; }
+  .status-dot.active { background: var(--green); border-color: var(--green); }
+  .status-dot.done { background: var(--green-light); border-color: var(--green-light); }
+  .status-connector { width: 2px; height: 30px; background: var(--border); }
+  .status-connector.done { background: var(--green-light); }
+  .status-step-text { padding-bottom: 20px; }
+  .status-step-title { font-weight: 600; font-size: 15px; }
+  .status-step-desc { font-size: 13px; color: var(--text-muted); }
+
+  .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  .repair-card { background: white; border-radius: 12px; padding: 18px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-right: 4px solid var(--green); transition: box-shadow 0.2s; }
+  .repair-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+  .repair-card.status-בטיפול { border-right-color: var(--orange); }
+  .repair-card.status-מוכן { border-right-color: #10b981; }
+  .repair-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .repair-name { font-weight: 700; font-size: 17px; }
+  .repair-phone { font-size: 14px; color: var(--text-muted); margin-top: 2px; }
+  .repair-desc { font-size: 14px; color: var(--text); margin: 10px 0; line-height: 1.5; }
+  .repair-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .repair-date { font-size: 12px; color: var(--text-muted); }
+  .repair-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* THUMBNAIL */
+  .repair-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; cursor: pointer; transition: transform 0.2s; border: 2px solid var(--border); margin-top: 10px; }
+  .repair-thumb:hover { transform: scale(1.05); }
+
+  /* LIGHTBOX */
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9998; align-items: center; justify-content: center; }
+  .lightbox.show { display: flex; }
+  .lightbox img { max-width: 92vw; max-height: 88vh; border-radius: 12px; object-fit: contain; }
+  .lightbox-close { position: absolute; top: 20px; left: 20px; color: white; font-size: 32px; cursor: pointer; background: rgba(0,0,0,0.5); width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+
+  .status-select { padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--border); cursor: pointer; font-family: 'Heebo', sans-serif; }
+  .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
+  .search-bar input { margin: 0; }
+  .filter-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filter-tab { padding: 7px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1.5px solid var(--border); background: white; cursor: pointer; transition: all 0.2s; font-family: 'Heebo', sans-serif; }
+  .filter-tab.active { background: var(--green); color: white; border-color: var(--green); }
+  .tab-count { display: inline-block; background: rgba(0,0,0,0.12); border-radius: 10px; padding: 0 7px; font-size: 11px; margin-right: 5px; min-width: 18px; }
+  .filter-tab.active .tab-count { background: rgba(255,255,255,0.25); }
+
+  /* ===== סוג פנייה (טופס לקוח) ===== */
+  .type-toggle { display: flex; gap: 8px; }
+  .type-toggle label { flex: 1; text-align: center; padding: 10px 6px; border: 1.5px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--bg); font-size: 14px; font-weight: 500; }
+  .type-toggle input { display: none; }
+  .type-toggle label:has(input:checked) { background: var(--green); color: white; border-color: var(--green); font-weight: 700; }
+
+  /* ===== הצעת מחיר ===== */
+  .badge-quote { background: #ede9fe; color: #6d28d9; }
+  .repair-card.status-הצעתמחיר { border-right-color: #8b5cf6; }
+
+  /* ===== מודאל תעודת תיקון ===== */
+  .cert-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 300; padding: 14px; overflow-y: auto; }
+  .cert-overlay.show { display: block; }
+  .cert-sheet { max-width: 1100px; margin: 0 auto; background: white; border-radius: 14px; padding: 20px 26px; }
+  .cert-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--green); padding-bottom: 10px; margin-bottom: 12px; flex-wrap: wrap; gap: 6px; }
+  .cert-title { font-size: 21px; font-weight: 900; color: var(--green); }
+  .cert-meta { font-size: 13px; color: var(--text-muted); }
+  .cert-meta b { color: #1a1a1a; }
+  .cert-top-fields { display: grid; grid-template-columns: 1.2fr 1fr 1.4fr 0.8fr; gap: 10px; margin-bottom: 12px; }
+  .cert-field label { display: block; font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 3px; }
+  .cert-field input, .cert-field select { width: 100%; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--bg); font-family: 'Heebo', sans-serif; }
+  .cert-field input:focus, .cert-field select:focus { outline: none; border-color: var(--green); background: white; }
+  .cert-readonly { background: #eee !important; color: var(--text-muted); }
+  .cert-items { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 26px; margin-bottom: 10px; }
+  .cert-item-row { display: grid; grid-template-columns: 1fr 60px 80px 66px; gap: 6px; align-items: center; padding: 2px 0; border-bottom: 1px dashed var(--border); }
+  .cert-item-name { font-size: 13px; font-weight: 500; }
+  .cert-item-row input { padding: 4px 6px; border: 1.5px solid var(--border); border-radius: 6px; font-size: 13px; text-align: center; background: var(--bg); width: 100%; font-family: 'Heebo', sans-serif; }
+  .cert-item-row input:focus { outline: none; border-color: var(--green); background: white; }
+  .cert-item-row input:not(:placeholder-shown) { background: var(--green-light); border-color: var(--green); font-weight: 700; }
+  .cert-line-total { font-size: 12.5px; font-weight: 700; color: var(--green); text-align: left; direction: ltr; }
+  .cert-bottom { display: grid; grid-template-columns: 1fr 220px; gap: 14px; align-items: end; border-top: 3px solid var(--green); padding-top: 10px; }
+  .cert-notes textarea { width: 100%; height: 52px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; background: var(--bg); resize: none; font-family: 'Heebo', sans-serif; }
+  .cert-notes textarea:focus { outline: none; border-color: var(--green); background: white; }
+  .cert-total-box { background: var(--green); color: white; border-radius: 12px; padding: 10px 16px; text-align: center; }
+  .cert-total-label { font-size: 12px; font-weight: 300; }
+  .cert-total-value { font-size: 26px; font-weight: 900; direction: ltr; }
+  .cert-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
+  @media (max-width: 700px) {
+    .cert-items { grid-template-columns: 1fr; }
+    .cert-top-fields { grid-template-columns: 1fr 1fr; }
+    .cert-bottom { grid-template-columns: 1fr; }
+  }
+
+  /* ===== תעודה בתצוגת לקוח ===== */
+  .cert-view { background: var(--bg); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 14px; }
+  .cert-view-title { font-weight: 900; color: var(--green); font-size: 16px; margin-bottom: 8px; }
+  .cert-view-row { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; border-bottom: 1px dashed var(--border); }
+  .cert-view-total { display: flex; justify-content: space-between; font-size: 17px; font-weight: 900; color: var(--green); padding-top: 8px; }
+  .quote-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .quote-actions .btn { flex: 1; }
+
+  .login-wrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
+  .login-card { background: white; border-radius: 20px; padding: 36px 28px; width: 100%; max-width: 400px; box-shadow: var(--shadow); text-align: center; }
+  .login-logo { font-size: 48px; margin-bottom: 12px; }
+  .login-title { font-size: 22px; font-weight: 700; color: var(--green); margin-bottom: 6px; }
+  .login-sub { font-size: 14px; color: var(--text-muted); margin-bottom: 28px; }
+
+  .empty-state { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+  .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+  .loading { text-align: center; padding: 32px; color: var(--text-muted); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: #1a1a1a; color: white; padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; z-index: 9999; transition: transform 0.3s; white-space: nowrap; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--green); }
+  .toast.error { background: #dc2626; }
+
+  .text-center { text-align: center; }
+  .mt-16 { margin-top: 16px; }
+  .admin-link { font-size: 13px; color: var(--text-muted); text-align: center; margin-top: 24px; cursor: pointer; text-decoration: underline; }
+
+  .upload-progress { height: 4px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; display: none; }
+  .upload-progress-bar { height: 100%; background: var(--green); width: 0%; transition: width 0.3s; }
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-close" onclick="closeLightbox()">✕</div>
+  <img id="lightboxImg" src="" alt="תמונה">
+</div>
+
+<!-- LOGIN -->
+<div id="loginPage" class="login-wrap" style="display:none;">
+  <div class="login-card">
+    
+    <div class="login-title">🚲 אימפריאל</div>
+    <div class="login-sub">כניסת מנהל</div>
+    <div class="form-group">
+      <label>שם משתמש</label>
+      <input type="text" id="loginUser" placeholder="הכנס שם משתמש">
+    </div>
+    <div class="form-group">
+      <label>סיסמה</label>
+      <input type="password" id="loginPass" placeholder="הכנס סיסמה">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">כניסה למערכת</button>
+    <div style="margin-top:16px; font-size:12px; color:var(--text-muted);">
+      
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<div class="header" id="mainHeader" style="display:none;">
+  <div style="flex:1;">
+    <div class="header-title">🚲 אימפריאל</div>
+    <div class="header-sub" id="headerSub">מעקב תיקונים</div>
+  </div>
+  <img src="data:image/png;base64,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" style="height:44px;width:auto;object-fit:contain;" alt="לוגו">
+</div>
+</div>
+
+<!-- PAGE: FORM -->
+<div class="page" id="pageForm">
+  <div class="card">
+    <div class="card-title">📋 פתיחת קריאת שירות</div>
+    <div class="form-group">
+      <label>שם מלא *</label>
+      <input type="text" id="custName" placeholder="הכנס שם מלא">
+    </div>
+    <div class="form-group">
+      <label>מספר טלפון *</label>
+      <input type="tel" id="custPhone" placeholder="05X-XXXXXXX">
+    </div>
+    <div class="form-group">
+      <label>סוג הפנייה *</label>
+      <div class="type-toggle">
+        <label><input type="radio" name="reqType" value="repair" checked><span>🔧 תיקון</span></label>
+        <label><input type="radio" name="reqType" value="quote"><span>💰 בקשת הצעת מחיר</span></label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>תיאור הבעיה *</label>
+      <textarea id="custDesc" placeholder="תאר את הבעיה עם האופניים..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>תמונה של האופניים *</label>
+      <div class="img-upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+        <div class="img-upload-icon">📷</div>
+        <div class="img-upload-text">לחץ לצילום או בחירת תמונה</div>
+        <img class="img-preview" id="imgPreview" alt="תצוגה מקדימה">
+        <div class="upload-progress" id="uploadProgress">
+          <div class="upload-progress-bar" id="uploadProgressBar"></div>
+        </div>
+      </div>
+      <span class="img-remove" id="imgRemove" onclick="removeImage(event)">✕ הסר תמונה</span>
+      <div style="font-size:11.5px; color:var(--text-muted); margin-top:6px; text-align:center;">
+        לא נפתחת המצלמה? ניתן לבחור תמונה מהגלריה, או לוודא בהגדרות הדפדפן שהאתר מורשה לגשת למצלמה
+      </div>
+      <input type="file" id="fileInput" accept="image/*" onchange="handleImageSelect(this)">
+    </div>
+    <button class="btn btn-primary" onclick="submitRepair()" id="submitBtn">
+      ✅ שלח קריאת שירות
+    </button>
+  </div>
+  
+</div>
+
+<!-- PAGE: SUCCESS -->
+<div class="page" id="pageSuccess">
+  <div class="card text-center">
+    <div class="success-icon">✅</div>
+    <div class="card-title" style="justify-content:center;">הקריאה נפתחה בהצלחה!</div>
+    <p style="color:var(--text-muted); font-size:14px; margin-bottom:16px;">שמור את מספר הקריאה שלך לצורך מעקב</p>
+    <div class="ticket-box">
+      <div class="ticket-id" id="successTicketId"></div>
+      <div class="ticket-label">מספר קריאה</div>
+    </div>
+    <p style="font-size:14px; color:var(--text-muted);">נעדכן אותך כשהאופניים מוכנים לאיסוף 🚲</p>
+    <button class="btn btn-secondary mt-16" onclick="checkStatus()">בדוק סטטוס</button>
+  </div>
+</div>
+
+<!-- PAGE: STATUS -->
+<div class="page" id="pageStatus">
+  <div class="card">
+    <div class="card-title">🔍 סטטוס הקריאה שלך</div>
+    <div id="statusContent"><div class="loading"><div class="spinner"></div>טוען...</div></div>
+  </div>
+  <button class="btn btn-secondary" onclick="newRepair()" style="margin-top:8px;">+ פתח קריאה חדשה</button>
+</div>
+
+<!-- PAGE: ADMIN -->
+<div class="page" id="pageAdmin">
+  <div class="admin-header">
+    <div style="font-size:20px; font-weight:700; color:var(--green);">לוח ניהול תיקונים</div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="openCustomerHistory()">📜 היסטוריית לקוח</button>
+      <button class="btn btn-secondary btn-sm" onclick="logout()">יציאה</button>
+    </div>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="🔍 חיפוש לפי שם או טלפון..." oninput="filterRepairs()">
+  </div>
+  <div class="filter-tabs">
+    <button class="filter-tab active" onclick="setFilter('all', this)">הכל <span class="tab-count" id="cnt-all">0</span></button>
+    <button class="filter-tab" onclick="setFilter('חדש', this)">חדש <span class="tab-count" id="cnt-new">0</span></button>
+    <button class="filter-tab" onclick="setFilter('בטיפול', this)">בטיפול <span class="tab-count" id="cnt-prog">0</span></button>
+    <button class="filter-tab" onclick="setFilter('מוכן', this)">מוכן לאיסוף <span class="tab-count" id="cnt-ready">0</span></button>
+    <button class="filter-tab" onclick="setFilter('הצעת מחיר', this)">💰 הצעות מחיר <span class="tab-count" id="cnt-quote">0</span></button>
+    <select class="status-select" style="margin-right:auto;" onchange="setSort(this.value)">
+      <option value="desc">מיון: חדש ביותר קודם</option>
+      <option value="asc">מיון: ממתין הכי הרבה קודם</option>
+    </select>
+  </div>
+  <div id="adminRepairs"><div class="loading"><div class="spinner"></div>טוען תיקונים...</div></div>
+</div>
+
+<!-- MODAL: REPAIR CERTIFICATE / QUOTE -->
+<div class="cert-overlay" id="certOverlay">
+  <div class="cert-sheet">
+    <div class="cert-header">
+      <div class="cert-title" id="certTitle">🧾 תעודת תיקון</div>
+      <div class="cert-meta">תאריך: <b id="certDate"></b> &nbsp;|&nbsp; קריאה: <b id="certTicket"></b></div>
+    </div>
+    <div class="cert-top-fields">
+      <div class="cert-field">
+        <label>שם הלקוח</label>
+        <input type="text" id="certName" class="cert-readonly" readonly>
+      </div>
+      <div class="cert-field">
+        <label>טלפון</label>
+        <input type="text" id="certPhone" class="cert-readonly" readonly>
+      </div>
+      <div class="cert-field">
+        <label>סוג האופניים</label>
+        <input type="text" id="certBikeType" placeholder="לדוגמה: הרים 29&quot;">
+      </div>
+      <div class="cert-field">
+        <label>חשמלי</label>
+        <select id="certElectric"><option value="">בחר</option><option>לא</option><option>כן</option></select>
+      </div>
+    </div>
+    <div class="cert-items" id="certItems"></div>
+    <div class="cert-bottom">
+      <div class="cert-notes">
+        <label style="display:block; font-size:12px; font-weight:700; color:var(--green); margin-bottom:3px;">הערות</label>
+        <textarea id="certNotes" placeholder="הערות..."></textarea>
+      </div>
+      <div class="cert-total-box">
+        <div class="cert-total-label">סה"כ לתשלום</div>
+        <div class="cert-total-value" id="certGrandTotal">₪0</div>
+      </div>
+    </div>
+    <div class="cert-actions">
+      <button class="btn btn-secondary" style="width:auto;" onclick="closeCertModal()">ביטול</button>
+      <button class="btn btn-primary" style="width:auto;" id="certSaveBtn" onclick="saveCert()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: CUSTOMER HISTORY -->
+<div class="page" id="pageCustomerHistory">
+  <div class="admin-header">
+    <div style="font-size:20px; font-weight:700; color:var(--green);">היסטוריית לקוח</div>
+    <button class="btn btn-secondary btn-sm" onclick="showAdminPage()">⬅ חזרה לניהול</button>
+  </div>
+  <div class="search-bar">
+    <input type="text" id="custHistorySearch" placeholder="🔍 חפש לפי שם או טלפון..." onkeydown="if(event.key==='Enter') searchCustomerHistory()">
+    <button class="btn btn-primary btn-sm" style="width:auto;" onclick="searchCustomerHistory()">חפש</button>
+  </div>
+  <div id="custHistoryResults"><div class="empty-state"><div class="empty-state-icon">🔍</div><p>הקלד שם או מספר טלפון לחיפוש</p></div></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://mdebqivawvmuprcmjbxj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_LdfXq3DnLGdPZ_aHJ6mREA_k8CMFu--';
+const BUCKET = 'repairs-images';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const ADMIN_USER = 'yalidev';
+const ADMIN_PASS = 'ZJ#G4vJbmjC48PTd';
+
+let allRepairs = [];
+let currentFilter = 'all';
+let selectedFile = null;
+
+// ===== INIT =====
+// מילוי אוטומטי של פרטי לקוח שנשמרו במכשיר (מונע טעויות הקלדה בפניות חוזרות)
+function prefillCustomer() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('imperial_customer') || 'null');
+    if (saved) {
+      if (saved.name)  document.getElementById('custName').value  = saved.name;
+      if (saved.phone) document.getElementById('custPhone').value = saved.phone;
+    }
+  } catch (e) { /* נתון פגום - מתעלמים */ }
+}
+
+window.onload = async () => {
+  // תמיכה בקישור ישיר עם מספר קריאה (?ticket=IMP-000123), למשל מהודעת WhatsApp
+  // נבדק לפני ה-localStorage כדי לעבוד גם ממכשיר/דפדפן שונה מזה שבו נפתחה הקריאה
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlTicketId = urlParams.get('ticket');
+  if (urlTicketId) localStorage.setItem('bike_ticket_id', urlTicketId);
+
+  const ticketId = urlTicketId || localStorage.getItem('bike_ticket_id');
+  const isAdmin = sessionStorage.getItem('bike_admin');
+  const isAdminUrl = window.location.search.includes('admin');
+  if (isAdmin) { showAdminPage(); }
+  else if (isAdminUrl) { goToAdmin(); }
+  else if (ticketId) { showPage('pageStatus'); showHeader('מעקב קריאה'); loadStatus(ticketId); }
+  else { showPage('pageForm'); showHeader('פתיחת קריאת שירות'); prefillCustomer(); }
+};
+
+function showHeader(sub) {
+  document.getElementById('mainHeader').style.display = 'flex';
+  document.getElementById('headerSub').textContent = sub;
+}
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ===== IMAGE HANDLING =====
+function handleImageSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Compress before storing
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX) { h = h * MAX / w; w = MAX; }
+      if (h > MAX) { w = w * MAX / h; h = MAX; }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        selectedFile = new File([blob], file.name, { type: 'image/jpeg' });
+        document.getElementById('imgPreview').src = canvas.toDataURL('image/jpeg', 0.85);
+        document.getElementById('imgPreview').classList.add('show');
+        document.getElementById('imgRemove').classList.add('show');
+        document.getElementById('uploadArea').classList.add('has-image');
+      }, 'image/jpeg', 0.85);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeImage(e) {
+  e.stopPropagation();
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('imgPreview').src = '';
+  document.getElementById('imgPreview').classList.remove('show');
+  document.getElementById('imgRemove').classList.remove('show');
+  document.getElementById('uploadArea').classList.remove('has-image');
+}
+
+async function uploadImage(ticketId) {
+  if (!selectedFile) return null;
+  const ext = 'jpg';
+  const path = `${ticketId}.${ext}`;
+  const { error } = await db.storage.from(BUCKET).upload(path, selectedFile, { upsert: true });
+  if (error) { console.error(error); return null; }
+  const { data } = db.storage.from(BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// ===== SUBMIT =====
+function genTicket() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = 'IMP-';
+  for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
+  return id;
+}
+
+// בדיקת תקינות מספר טלפון נייד ישראלי (05X-XXXXXXX, גם עם קידומת 972 או בלי מקפים/רווחים)
+function isValidIsraeliMobile(raw) {
+  const digits = (raw || '').replace(/[^0-9]/g, '');
+  const local = digits.startsWith('972') ? '0' + digits.slice(3) : digits;
+  return /^05\d{8}$/.test(local);
+}
+
+async function submitRepair() {
+  const name = document.getElementById('custName').value.trim();
+  const phone = document.getElementById('custPhone').value.trim();
+  const desc = document.getElementById('custDesc').value.trim();
+  if (!name || !phone || !desc) { showToast('יש למלא את כל השדות', 'error'); return; }
+  if (!isValidIsraeliMobile(phone)) { showToast('מספר טלפון לא תקין - יש להזין מספר נייד ישראלי (05X-XXXXXXX)', 'error'); return; }
+  if (!selectedFile) { showToast('יש להוסיף תמונה לקריאה', 'error'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'שולח...';
+
+  const ticketId = genTicket();
+
+  // Upload image if exists
+  let imageUrl = null;
+  if (selectedFile) {
+    btn.textContent = 'מעלה תמונה...';
+    const prog = document.getElementById('uploadProgress');
+    const bar = document.getElementById('uploadProgressBar');
+    prog.style.display = 'block';
+    bar.style.width = '60%';
+    imageUrl = await uploadImage(ticketId);
+    bar.style.width = '100%';
+    setTimeout(() => { prog.style.display = 'none'; }, 400);
+  }
+
+  btn.textContent = 'שומר...';
+  const reqType = document.querySelector('input[name="reqType"]:checked').value;
+  const { error } = await db.from('repairs').insert({
+    ticket_id: ticketId, name, phone, description: desc,
+    status: reqType === 'quote' ? 'הצעת מחיר' : 'חדש',
+    request_type: reqType, image_url: imageUrl
+  });
+
+  if (error) {
+    showToast('שגיאה בשליחה, נסה שוב', 'error');
+    btn.disabled = false; btn.textContent = '✅ שלח קריאת שירות';
+    return;
+  }
+
+  localStorage.setItem('bike_ticket_id', ticketId);
+  // שמירת פרטי הלקוח במכשיר למילוי אוטומטי בפניות עתידיות
+  localStorage.setItem('imperial_customer', JSON.stringify({ name, phone }));
+  document.getElementById('successTicketId').textContent = ticketId;
+  showPage('pageSuccess');
+  showToast(reqType === 'quote' ? 'בקשת הצעת המחיר נשלחה!' : 'הקריאה נפתחה בהצלחה!', 'success');
+
+  // שליחת הודעת WhatsApp - לא חוסמת ולא מפילה את הזרימה אם משהו נכשל כאן
+  try {
+    await fetch('/.netlify/functions/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template: 'received', phone, customerName: name, ticketId }),
+    });
+  } catch (waErr) {
+    console.error('שליחת WhatsApp נכשלה (לא משפיע על פתיחת הקריאה):', waErr);
+  }
+}
+
+// ===== STATUS =====
+async function checkStatus() {
+  showPage('pageStatus'); showHeader('מעקב קריאה');
+  const ticketId = localStorage.getItem('bike_ticket_id');
+  if (ticketId) loadStatus(ticketId);
+}
+
+async function loadStatus(ticketId) {
+  const content = document.getElementById('statusContent');
+  content.innerHTML = '<div class="loading"><div class="spinner"></div>טוען...</div>';
+  const { data, error } = await db.from('repairs').select('*').eq('ticket_id', ticketId).eq('archived', false).single();
+  if (error || !data) {
+    // הקריאה לא קיימת או הועברה לארכיון - מנקים ומחזירים לטופס פתיחת קריאה
+    localStorage.removeItem('bike_ticket_id');
+    content.innerHTML = '<div class="empty-state"><div class="empty-state-icon">❌</div><p>לא נמצאה קריאה פעילה</p></div>';
+    return;
+  }
+
+  // ===== זרימת הצעת מחיר =====
+  if (data.status === 'הצעת מחיר') {
+    const header = `
+      <div style="margin-bottom:20px;">
+        <div style="font-size:13px;color:var(--text-muted);">מספר קריאה</div>
+        <div style="font-size:22px;font-weight:900;color:var(--green);">${data.ticket_id}</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:13px;color:var(--text-muted);">שם</div>
+        <div style="font-weight:600;">${data.name}</div>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;color:var(--text-muted);">תיאור</div>
+        <div style="font-size:14px;">${data.description}</div>
+      </div>`;
+    if (!data.certificate) {
+      // ההצעה טרם מולאה
+      content.innerHTML = header + `
+        <div style="background:var(--green-pale, #d8f3dc);border-radius:12px;padding:18px;text-align:center;">
+          <div style="font-size:34px;margin-bottom:8px;">💰</div>
+          <div style="font-weight:700;color:var(--green);font-size:16px;margin-bottom:6px;">אנחנו עובדים על הצעת המחיר שלך</div>
+          <div style="font-size:14px;color:var(--text-muted);">בקרוב ההצעה תהיה מוכנה - המשך לעקוב כאן כדי להתעדכן</div>
+        </div>`;
+    } else {
+      // ההצעה מוכנה - הצגה + אישור/דחייה
+      content.innerHTML = header + renderCertView(data.certificate, '💰 הצעת מחיר') + `
+        <div class="quote-actions">
+          <button class="btn btn-primary" style="background:#10b981;" onclick="approveQuote('${data.id}')">✅ מאשר את ההצעה</button>
+          <button class="btn btn-danger" onclick="rejectQuote('${data.id}','${data.ticket_id}')">❌ לא מאשר</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:center;">אישור יעביר את האופניים לתור התיקונים. דחייה תסגור את הפנייה.</p>`;
+    }
+    return;
+  }
+
+  const statuses = ['חדש', 'בטיפול', 'מוכן'];
+  const statusIdx = statuses.indexOf(data.status);
+  const statusEmojis = { 'חדש': '📥', 'בטיפול': '🔧', 'מוכן': '✅' };
+  const statusDesc = { 'חדש': 'הקריאה התקבלה ובקרוב תיפתח', 'בטיפול': 'הטכנאי עובד על האופניים שלך', 'מוכן': 'האופניים מוכנים לאיסוף!' };
+
+  content.innerHTML = `
+    <div style="margin-bottom:20px;">
+      <div style="font-size:13px;color:var(--text-muted);">מספר קריאה</div>
+      <div style="font-size:22px;font-weight:900;color:var(--green);">${data.ticket_id}</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <div style="font-size:13px;color:var(--text-muted);">שם</div>
+      <div style="font-weight:600;">${data.name}</div>
+    </div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:13px;color:var(--text-muted);">תיאור</div>
+      <div style="font-size:14px;">${data.description}</div>
+    </div>
+    ${data.image_url ? `<img src="${data.image_url}" style="width:100%;max-height:180px;object-fit:cover;border-radius:10px;margin-bottom:20px;" onclick="openLightbox('${data.image_url}')">` : ''}
+    <div class="status-timeline">
+      ${statuses.map((s, i) => `
+        <div class="status-step">
+          <div class="status-step-line">
+            <div class="status-dot ${i < statusIdx ? 'done' : (i === statusIdx ? 'active' : '')}"></div>
+            ${i < statuses.length - 1 ? `<div class="status-connector ${i < statusIdx ? 'done' : ''}"></div>` : ''}
+          </div>
+          <div class="status-step-text">
+            <div class="status-step-title" style="color:${i === statusIdx ? 'var(--green)' : 'inherit'};">${statusEmojis[s]} ${s}</div>
+            <div class="status-step-desc">${statusDesc[s]}</div>
+          </div>
+        </div>`).join('')}
+    </div>
+    ${data.status === 'מוכן' ? `
+      <div style="background:var(--green-pale);border-radius:10px;padding:14px;text-align:center;font-weight:600;color:var(--green);margin-top:8px;">🎉 האופניים שלך מוכנים! מחכים לך בחנות</div>
+      ${data.certificate ? renderCertView(data.certificate, '🧾 תעודת תיקון') : ''}
+      <button class="btn btn-primary" style="margin-top:16px;background:#10b981;" onclick="collectBike('${data.id}','${data.ticket_id}')">🙌 אספתי את האופניים</button>
+    ` : ''}
+  `;
+}
+
+// תצוגת תעודה/הצעה ללקוח (קריאה בלבד)
+function renderCertView(cert, title) {
+  const lines = (cert.items || []).map(it => {
+    const qty = it.q > 1 ? ` ×${it.q}` : '';
+    return `<div class="cert-view-row"><span>${CERT_ITEMS[it.i]}${qty}</span><span style="direction:ltr;">₪${(it.p * (it.q || 1)).toLocaleString()}</span></div>`;
+  }).join('');
+  const meta = [];
+  if (cert.bikeType) meta.push(`סוג: ${cert.bikeType}`);
+  if (cert.electric) meta.push(`חשמלי: ${cert.electric}`);
+  if (cert.date) meta.push(`תאריך: ${cert.date}`);
+  return `
+  <div class="cert-view">
+    <div class="cert-view-title">${title}</div>
+    ${meta.length ? `<div style="font-size:12.5px;color:var(--text-muted);margin-bottom:8px;">${meta.join(' | ')}</div>` : ''}
+    ${lines || '<div style="font-size:13px;color:var(--text-muted);">אין פריטים</div>'}
+    ${cert.notes ? `<div style="font-size:13px;margin-top:8px;"><b>הערות:</b> ${cert.notes}</div>` : ''}
+    <div class="cert-view-total"><span>סה"כ</span><span style="direction:ltr;">₪${(cert.total || 0).toLocaleString()}</span></div>
+  </div>`;
+}
+
+// ===== תגובת לקוח להצעת מחיר =====
+async function approveQuote(id) {
+  if (!confirm('לאשר את הצעת המחיר? האופניים יעברו לתור התיקונים.')) return;
+  const { error } = await db.from('repairs').update({ status: 'חדש', quote_response: 'approved', response_at: new Date().toISOString() }).eq('id', id);
+  if (error) { showToast('שגיאה, נסה שוב', 'error'); return; }
+  showToast('ההצעה אושרה! האופניים בתור לתיקון 🔧', 'success');
+  loadStatus(localStorage.getItem('bike_ticket_id'));
+}
+
+async function rejectQuote(id, ticketId) {
+  if (!confirm('לדחות את הצעת המחיר? הפנייה תיסגר.')) return;
+  await db.from('repairs').update({ quote_response: 'rejected', response_at: new Date().toISOString() }).eq('id', id);
+  const { data } = await db.from('repairs').select('image_url').eq('id', id).single();
+  const error = await archiveRepair(id, ticketId, data ? data.image_url : null);
+  if (error) { showToast('שגיאה, נסה שוב', 'error'); return; }
+  localStorage.removeItem('bike_ticket_id');
+  showToast('הפנייה נסגרה. נשמח לראותך בעתיד 🚲', 'success');
+  setTimeout(() => { showPage('pageForm'); showHeader('פתיחת קריאת שירות'); prefillCustomer(); }, 2000);
+}
+
+function newRepair() {
+  localStorage.removeItem('bike_ticket_id');
+  document.getElementById('custName').value = '';
+  document.getElementById('custPhone').value = '';
+  document.getElementById('custDesc').value = '';
+  prefillCustomer(); // מילוי שם וטלפון מהמכשיר אם נשמרו
+  removeImage({ stopPropagation: () => {} });
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = false; btn.textContent = '✅ שלח קריאת שירות';
+  showPage('pageForm'); showHeader('פתיחת קריאת שירות');
+}
+
+// ===== ARCHIVE =====
+// כיווץ תמונת הקריאה לגרסת ארכיון קטנה (~300px) והחלפתה ב-Storage באותו נתיב
+async function archiveImage(ticketId, imageUrl) {
+  if (!imageUrl) return;
+  try {
+    const resp = await fetch(imageUrl);
+    const blob = await resp.blob();
+    const bmp = await createImageBitmap(blob);
+    const MAXW = 300;
+    const scale = Math.min(1, MAXW / bmp.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bmp.width * scale));
+    canvas.height = Math.max(1, Math.round(bmp.height * scale));
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const small = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.5));
+    if (small) await db.storage.from(BUCKET).upload(`${ticketId}.jpg`, small, { upsert: true });
+  } catch (e) { console.error('archive image failed', e); }
+}
+
+// העברת קריאה לארכיון: כיווץ התמונה וסימון archived
+async function archiveRepair(id, ticketId, imageUrl) {
+  await archiveImage(ticketId, imageUrl);
+  const { error } = await db.from('repairs').update({ archived: true }).eq('id', id);
+  return error;
+}
+
+async function collectBike(id, ticketId) {
+  if (!confirm('האם אתה בטוח שאספת את האופניים?')) return;
+  // ארכוב במקום מחיקה - הקריאה נשמרת בהיסטוריית הלקוח
+  const { data } = await db.from('repairs').select('image_url').eq('id', id).single();
+  const error = await archiveRepair(id, ticketId, data ? data.image_url : null);
+  if (error) { showToast('שגיאה, נסה שוב', 'error'); return; }
+  // ניקוי localStorage
+  localStorage.removeItem('bike_ticket_id');
+  showToast('תודה! נתראה בפעם הבאה 🚲', 'success');
+  setTimeout(() => { showPage('pageForm'); showHeader('פתיחת קריאת שירות'); prefillCustomer(); }, 2000);
+}
+
+// ===== ADMIN =====
+function goToAdmin() {
+  document.getElementById('mainHeader').style.display = 'none';
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('loginPage').style.display = 'flex';
+}
+
+function doLogin() {
+  const u = document.getElementById('loginUser').value;
+  const p = document.getElementById('loginPass').value;
+  if (u === ADMIN_USER && p === ADMIN_PASS) { sessionStorage.setItem('bike_admin', '1'); showAdminPage(); }
+  else showToast('פרטי כניסה שגויים', 'error');
+}
+
+function showAdminPage() {
+  document.getElementById('loginPage').style.display = 'none';
+  showHeader('ניהול תיקונים'); showPage('pageAdmin'); loadRepairs();
+}
+
+function logout() {
+  sessionStorage.removeItem('bike_admin');
+  document.getElementById('mainHeader').style.display = 'none';
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('loginPage').style.display = 'flex';
+}
+
+async function loadRepairs() {
+  const { data, error } = await db.from('repairs').select('*').order('created_at', { ascending: false });
+  if (error) { showToast('שגיאה בטעינה', 'error'); return; }
+  allRepairs = data || [];
+  renderRepairs();
+}
+
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderRepairs();
+}
+
+let currentSort = 'desc'; // desc = חדש קודם, asc = הוותיק (ממתין הכי הרבה) קודם
+function setSort(v) { currentSort = v; renderRepairs(); }
+
+function filterRepairs() { renderRepairs(); }
+
+function renderRepairs() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const container = document.getElementById('adminRepairs');
+  const active = allRepairs.filter(r => !r.archived);
+
+  // עדכון מוני הלשוניות
+  document.getElementById('cnt-all').textContent = active.length;
+  document.getElementById('cnt-new').textContent = active.filter(r => r.status === 'חדש').length;
+  document.getElementById('cnt-prog').textContent = active.filter(r => r.status === 'בטיפול').length;
+  document.getElementById('cnt-ready').textContent = active.filter(r => r.status === 'מוכן').length;
+  document.getElementById('cnt-quote').textContent = active.filter(r => r.status === 'הצעת מחיר').length;
+
+  let filtered = active.filter(r => {
+    const matchFilter = currentFilter === 'all' || r.status === currentFilter;
+    const matchSearch = !search || r.name.toLowerCase().includes(search) || r.phone.includes(search);
+    return matchFilter && matchSearch;
+  });
+
+  // מיון לפי תאריך הגשה
+  filtered.sort((a, b) => currentSort === 'asc'
+    ? new Date(a.created_at) - new Date(b.created_at)
+    : new Date(b.created_at) - new Date(a.created_at));
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔧</div><p>אין תיקונים להצגה</p></div>`;
+    return;
+  }
+
+  const phoneCounts = {};
+  allRepairs.forEach(r => { phoneCounts[r.phone] = (phoneCounts[r.phone] || 0) + 1; });
+
+  container.innerHTML = filtered.map(r => {
+    const date = new Date(r.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+    // חישוב זמן המתנה בימים קלנדריים (חצות עד חצות), לא במחזורי 24 שעות
+    const startOfDay = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+    const waitDays = Math.round((startOfDay(new Date()) - startOfDay(r.created_at)) / 86400000);
+    const waitText = waitDays === 0 ? 'הוגש היום' : waitDays === 1 ? 'ממתין יום' : `ממתין ${waitDays} ימים`;
+    const waitTag = (r.status !== 'מוכן')
+      ? `<span class="badge" style="font-size:11px; ${waitDays >= 7 ? 'background:#fee2e2;color:#b91c1c;font-weight:700;' : 'background:#e5e0d8;color:#6b7280;'}">⏰ ${waitText}</span>`
+      : '';
+    const isQuote = r.status === 'הצעת מחיר';
+    const badgeClass = r.status === 'חדש' ? 'badge-new' : r.status === 'בטיפול' ? 'badge-progress' : isQuote ? 'badge-quote' : 'badge-ready';
+    const safeStatus = r.status.replace(/ /g, '');
+    const thumbHtml = r.image_url ? `<img src="${r.image_url}" class="repair-thumb" onclick="openLightbox('${r.image_url}')" alt="תמונה">` : '';
+    const repeatCount = phoneCounts[r.phone];
+    const repeatTag = repeatCount > 1 ? `<span class="badge badge-progress" style="margin-right:6px; font-size:11px;">🔁 לקוח חוזר ×${repeatCount}</span>` : '';
+    const quoteState = isQuote ? (r.certificate ? '<span class="badge badge-quote" style="font-size:11px;">נשלחה ללקוח - ממתין לתגובה</span>' : '<span class="badge badge-progress" style="font-size:11px;">ממתין למילוי הצעה</span>') : '';
+
+    // פעולות: להצעת מחיר - כפתור מילוי/עריכת הצעה במקום בורר סטטוס
+    const actions = isQuote
+      ? `<button class="btn btn-primary btn-sm" style="width:auto;" onclick="openCertModal('${r.id}','quote')">${r.certificate ? '💰 ערוך הצעה' : '💰 מלא הצעת מחיר'}</button>`
+      : `<select class="status-select" onchange="updateStatus('${r.id}', this.value)">
+            <option value="חדש" ${r.status==='חדש'?'selected':''}>חדש</option>
+            <option value="בטיפול" ${r.status==='בטיפול'?'selected':''}>בטיפול</option>
+            <option value="מוכן" ${r.status==='מוכן'?'selected':''}>${r.status==='מוכן' ? 'מוכן' : 'סיום טיפול ומילוי תעודת תיקון'}</option>
+          </select>` +
+        (r.status === 'מוכן' || r.certificate ? `<button class="btn btn-secondary btn-sm" onclick="openCertModal('${r.id}','final')" title="תעודת תיקון">🧾</button>` : '');
+
+    return `
+    <div class="repair-card status-${safeStatus}" id="card-${r.id}">
+      <div class="repair-top">
+        <div>
+          <div class="repair-name">${r.name}</div>
+          <div class="repair-phone">📞 ${r.phone} ${repeatTag}</div>
+        </div>
+        <span style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+          <span class="badge ${badgeClass}">${isQuote ? '💰 הצעת מחיר' : r.status}</span>
+          ${waitTag}
+          ${quoteState}
+        </span>
+      </div>
+      <div class="repair-desc">${r.description}</div>
+      ${thumbHtml}
+      <div class="repair-footer">
+        <div class="repair-date">🕐 ${date} | ${r.ticket_id}</div>
+        <div class="repair-actions">
+          ${actions}
+          <button class="btn btn-secondary btn-sm" onclick="openCustomerHistoryByPhone('${r.phone}')">📜 היסטוריה</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteRepair('${r.id}')" title="העברה לארכיון">🗄</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== תעודת תיקון / הצעת מחיר (מנהל) =====
+const CERT_ITEMS = ["טיפול ה/ב","פנימית ק/א","חומר ק/א","פס גומי / סרט ק/א","טיובלס / ונטיל ק/א","צמיג ק/א סוג","כבל הילוכים ק/א","מוביל הילוכים ק/א","כבל בלם ק/א","מוביל כבל בלם ק/א","קסטה / פרילופ","שרשרת","קראנק","זרוע פדל","פדלים","אוזן/יישור","מעביר הילוכים ק/א","שיפטר ק/א","אוכף","ידית בלם ק/א","רוטור ק/א","דיסק ק/א","קליפר ק/א","רפידות בלם ק/א","קשת בלם ק/א","בלידינג ק/א","גלגל ק/א חופש","ציר גלגל ק/א","שמיניות ק/א","BB","גריפים","רגלית","סוללה","ידית בלם חשמלי ק/א","צג חשמלי","ידית גז","מסילה","סוויץ'"];
+
+let certRepairId = null;   // הקריאה שהתעודה שייכת לה
+let certMode = 'final';    // 'final' = תעודת תיקון, 'quote' = הצעת מחיר
+
+function buildCertRows() {
+  const half = Math.ceil(CERT_ITEMS.length / 2);
+  const col = (from, to) => CERT_ITEMS.slice(from, to).map((name, j) => {
+    const i = from + j;
+    return `<div class="cert-item-row">
+      <label class="cert-item-name">${name}</label>
+      <input type="number" min="0" step="1" placeholder="כמות" id="certQ${i}" oninput="calcCert()">
+      <input type="number" min="0" step="0.5" placeholder="מחיר ₪" id="certP${i}" oninput="calcCert()">
+      <span class="cert-line-total" id="certT${i}"></span>
+    </div>`;
+  }).join('');
+  document.getElementById('certItems').innerHTML = `<div>${col(0, half)}</div><div>${col(half, CERT_ITEMS.length)}</div>`;
+}
+
+function calcCert() {
+  let sum = 0;
+  for (let i = 0; i < CERT_ITEMS.length; i++) {
+    const q = parseFloat(document.getElementById('certQ' + i).value);
+    const p = parseFloat(document.getElementById('certP' + i).value);
+    const line = (p > 0) ? p * (q > 0 ? q : 1) : 0;
+    document.getElementById('certT' + i).textContent = line > 0 ? '₪' + line.toLocaleString() : '';
+    sum += line;
+  }
+  document.getElementById('certGrandTotal').textContent = '₪' + sum.toLocaleString();
+  return sum;
+}
+
+function openCertModal(repairId, mode) {
+  const r = allRepairs.find(x => x.id === repairId);
+  if (!r) return;
+  certRepairId = repairId;
+  certMode = mode;
+  buildCertRows();
+
+  document.getElementById('certTitle').textContent = mode === 'quote' ? '💰 הצעת מחיר' : '🧾 תעודת תיקון';
+  document.getElementById('certSaveBtn').textContent = mode === 'quote' ? '💾 שמור ושלח ללקוח' : '💾 שמור תעודה וסיים טיפול';
+  document.getElementById('certDate').textContent = new Date().toLocaleDateString('he-IL');
+  document.getElementById('certTicket').textContent = r.ticket_id;
+  document.getElementById('certName').value = r.name;
+  document.getElementById('certPhone').value = r.phone;
+  document.getElementById('certBikeType').value = '';
+  document.getElementById('certElectric').value = '';
+  document.getElementById('certNotes').value = '';
+
+  // טעינת תעודה קיימת (עריכה, או הצעה מאושרת כבסיס לתעודה הסופית)
+  const cert = r.certificate;
+  if (cert) {
+    document.getElementById('certBikeType').value = cert.bikeType || '';
+    document.getElementById('certElectric').value = cert.electric || '';
+    document.getElementById('certNotes').value = cert.notes || '';
+    (cert.items || []).forEach(it => {
+      if (it.q > 1) document.getElementById('certQ' + it.i).value = it.q;
+      document.getElementById('certP' + it.i).value = it.p;
+    });
+  }
+  calcCert();
+  document.getElementById('certOverlay').classList.add('show');
+}
+
+function closeCertModal() {
+  document.getElementById('certOverlay').classList.remove('show');
+  certRepairId = null;
+  renderRepairs(); // איפוס בורר סטטוס אם המעבר ל"מוכן" בוטל
+}
+
+async function saveCert() {
+  const items = [];
+  for (let i = 0; i < CERT_ITEMS.length; i++) {
+    const q = parseFloat(document.getElementById('certQ' + i).value);
+    const p = parseFloat(document.getElementById('certP' + i).value);
+    if (p > 0) items.push({ i, q: (q > 0 ? q : 1), p });
+  }
+  const cert = {
+    date: new Date().toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    bikeType: document.getElementById('certBikeType').value.trim(),
+    electric: document.getElementById('certElectric').value,
+    items,
+    notes: document.getElementById('certNotes').value.trim(),
+    total: calcCert()
+  };
+  const update = { certificate: cert, cert_saved_at: new Date().toISOString() };
+  if (certMode === 'final') update.status = 'מוכן'; // שמירת תעודה = סיום טיפול
+
+  // שומרים את פרטי הלקוח לפני שה-id מתאפס - לשליחת WhatsApp בשני המצבים (final / quote)
+  const repairForNotification = allRepairs.find(r => r.id === certRepairId);
+
+  const btn = document.getElementById('certSaveBtn');
+  btn.disabled = true; btn.textContent = 'שומר...';
+  const { error } = await db.from('repairs').update(update).eq('id', certRepairId);
+  btn.disabled = false;
+  if (error) { showToast('שגיאה בשמירה', 'error'); btn.textContent = '💾 שמור'; return; }
+
+  showToast(certMode === 'quote' ? 'ההצעה נשמרה ונשלחה ללקוח 💰' : 'התעודה נשמרה והטיפול הסתיים ✅', 'success');
+  document.getElementById('certOverlay').classList.remove('show');
+  certRepairId = null;
+  await loadRepairs();
+
+  // שליחת הודעת WhatsApp - לא חוסמת ולא מפילה את השמירה אם משהו נכשל כאן
+  if (repairForNotification) {
+    try {
+      await fetch('/.netlify/functions/send-whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          template: certMode === 'quote' ? 'quote' : 'ready',
+          phone: repairForNotification.phone,
+          customerName: repairForNotification.name,
+          ticketId: repairForNotification.ticket_id,
+        }),
+      });
+    } catch (waErr) {
+      console.error('שליחת WhatsApp נכשלה (לא משפיע על שמירת התעודה):', waErr);
+    }
+  }
+}
+
+// ===== CUSTOMER HISTORY =====
+function openCustomerHistory() {
+  showPage('pageCustomerHistory'); showHeader('היסטוריית לקוח');
+  document.getElementById('custHistorySearch').value = '';
+  document.getElementById('custHistoryResults').innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><p>הקלד שם או מספר טלפון לחיפוש</p></div>`;
+}
+
+async function openCustomerHistoryByPhone(phone) {
+  showPage('pageCustomerHistory'); showHeader('היסטוריית לקוח');
+  document.getElementById('custHistorySearch').value = phone;
+  await searchCustomerHistory(phone);
+}
+
+let lastHistoryQuery = '';
+
+async function searchCustomerHistory(forceQuery) {
+  const q = (typeof forceQuery === 'string' ? forceQuery : document.getElementById('custHistorySearch').value).trim();
+  lastHistoryQuery = q;
+  const container = document.getElementById('custHistoryResults');
+  if (!q) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><p>הקלד שם או מספר טלפון לחיפוש</p></div>`;
+    return;
+  }
+  container.innerHTML = '<div class="loading"><div class="spinner"></div>מחפש...</div>';
+  const { data, error } = await db.from('repairs').select('*')
+    .or(`phone.ilike.%${q}%,name.ilike.%${q}%`)
+    .order('created_at', { ascending: false });
+  if (error) { container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>שגיאה בחיפוש, נסה שוב</p></div>`; return; }
+  if (!data || !data.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🙈</div><p>לא נמצאו תוצאות</p></div>`;
+    return;
+  }
+
+  // קיבוץ לפי טלפון - כל טלפון = לקוח
+  const groups = {};
+  data.forEach(r => { (groups[r.phone] = groups[r.phone] || []).push(r); });
+
+  container.innerHTML = Object.entries(groups).map(([phone, repairs]) => {
+    const name = repairs[0].name;
+    const count = repairs.length;
+    const archivedCount = repairs.filter(r => r.archived).length;
+    const repeatBadge = count > 1
+      ? `<span class="badge badge-progress">🔁 לקוח חוזר – ${count} ביקורים</span>`
+      : `<span class="badge badge-new">ביקור ראשון</span>`;
+    const deleteArchiveBtn = archivedCount > 0
+      ? `<button class="btn btn-danger btn-sm" style="margin-top:8px;" onclick="deleteCustomerArchive('${phone}')">🗑 מחק ארכיון לקוח (${archivedCount})</button>`
+      : '';
+    const rows = repairs.map(r => {
+      const date = new Date(r.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const badgeClass = r.status === 'חדש' ? 'badge-new' : r.status === 'בטיפול' ? 'badge-progress' : 'badge-ready';
+      const archivedTag = r.archived ? `<span class="badge" style="background:#e5e0d8;color:#6b7280;">🗄 בארכיון</span>` : '';
+      const itemDeleteBtn = r.archived
+        ? `<button class="btn btn-danger btn-sm" onclick="deleteArchiveItem('${r.id}','${r.ticket_id}')" title="מחיקה לצמיתות">🗑</button>`
+        : '';
+      const certBtn = r.certificate
+        ? `<button class="btn btn-secondary btn-sm" onclick="toggleHistoryCert('${r.id}')" title="צפייה בתעודה">🧾</button>`
+        : '';
+      const certBlock = r.certificate
+        ? `<div id="histCert-${r.id}" style="display:none;">${renderCertView(r.certificate, r.request_type === 'quote' && r.status === 'הצעת מחיר' ? '💰 הצעת מחיר' : '🧾 תעודת תיקון')}</div>`
+        : '';
+      const thumb = r.image_url ? `<img src="${r.image_url}" class="repair-thumb" style="width:56px;height:56px;" onclick="openLightbox('${r.image_url}')" alt="תמונה">` : '';
+      const fmtTs = ts => new Date(ts).toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const certTs = r.cert_saved_at ? ` | 🧾 ${r.request_type === 'quote' ? 'הצעה נשלחה' : 'תעודה'}: ${fmtTs(r.cert_saved_at)}` : '';
+      const respTs = r.response_at ? ` | ${r.quote_response === 'approved' ? '✅ אושרה' : '❌ נדחתה'}: ${fmtTs(r.response_at)}` : '';
+      return `
+      <div style="border-top:1px solid var(--border); padding:12px 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span style="font-weight:600;">${r.ticket_id}</span>
+          <span style="display:flex; gap:6px; align-items:center;">${archivedTag}<span class="badge ${badgeClass}">${r.status}</span>${certBtn}${itemDeleteBtn}</span>
+        </div>
+        <div style="font-size:14px; margin-bottom:4px;">${r.description}</div>
+        ${thumb}
+        ${certBlock}
+        <div class="repair-date">🕐 הוגש: ${date}${certTs}${respTs}</div>
+      </div>`;
+    }).join('');
+    return `
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between;">
+        <span>${name}</span>${repeatBadge}
+      </div>
+      <div class="repair-phone" style="margin-bottom:8px;">📞 ${phone}</div>
+      ${rows}
+      ${deleteArchiveBtn}
+    </div>`;
+  }).join('');
+}
+
+// פתיחה/סגירה של תצוגת תעודה בהיסטוריה
+function toggleHistoryCert(id) {
+  const el = document.getElementById('histCert-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+// מחיקה לצמיתות של פריט ארכיון בודד
+async function deleteArchiveItem(id, ticketId) {
+  if (!confirm('למחוק פריט ארכיון זה לצמיתות?\nהפעולה בלתי הפיכה - הרישום והתמונה יימחקו.')) return;
+  await db.storage.from(BUCKET).remove([`${ticketId}.jpg`]);
+  const { error } = await db.from('repairs').delete().eq('id', id);
+  if (error) { showToast('שגיאה במחיקה', 'error'); return; }
+  showToast('פריט הארכיון נמחק לצמיתות', 'success');
+  await loadRepairs();
+  searchCustomerHistory(lastHistoryQuery);
+}
+
+// מחיקה לצמיתות של כל ארכיון הלקוח (קריאות פעילות אינן נמחקות)
+async function deleteCustomerArchive(phone) {
+  if (!confirm('למחוק את כל פריטי הארכיון של לקוח זה לצמיתות?\nהפעולה בלתי הפיכה. קריאות פעילות לא יימחקו.')) return;
+  const { data, error: selErr } = await db.from('repairs').select('id, ticket_id').eq('phone', phone).eq('archived', true);
+  if (selErr) { showToast('שגיאה במחיקה', 'error'); return; }
+  if (data && data.length) {
+    await db.storage.from(BUCKET).remove(data.map(r => `${r.ticket_id}.jpg`));
+    const { error } = await db.from('repairs').delete().eq('phone', phone).eq('archived', true);
+    if (error) { showToast('שגיאה במחיקה', 'error'); return; }
+  }
+  showToast('ארכיון הלקוח נמחק לצמיתות', 'success');
+  await loadRepairs();
+  searchCustomerHistory(lastHistoryQuery);
+}
+
+async function updateStatus(id, newStatus) {
+  // מעבר ל"מוכן" = סיום טיפול: נפתחת תעודת התיקון למילוי, והסטטוס יעודכן רק בשמירתה
+  if (newStatus === 'מוכן') {
+    openCertModal(id, 'final');
+    return;
+  }
+  const { error } = await db.from('repairs').update({ status: newStatus }).eq('id', id);
+  if (error) { showToast('שגיאה בעדכון', 'error'); return; }
+  const repair = allRepairs.find(r => r.id === id);
+  if (repair) repair.status = newStatus;
+  showToast(`סטטוס עודכן: ${newStatus}`, 'success');
+  renderRepairs();
+}
+
+async function deleteRepair(id) {
+  // "מחיקה" מהלוח = העברה לארכיון. הקריאה נשמרת בהיסטוריית הלקוח
+  if (!confirm('להעביר את הקריאה לארכיון?\nהיא תוסר מהלוח אך תישמר בהיסטוריית הלקוח.')) return;
+  const repair = allRepairs.find(r => r.id === id);
+  if (!repair) return;
+  const error = await archiveRepair(id, repair.ticket_id, repair.image_url);
+  if (error) { showToast('שגיאה בהעברה לארכיון', 'error'); return; }
+  repair.archived = true;
+  showToast('הקריאה הועברה לארכיון', 'success');
+  renderRepairs();
+}
+
+// ===== LIGHTBOX =====
+function openLightbox(url) {
+  document.getElementById('lightboxImg').src = url;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('show');
+}
+
+// ===== TOAST =====
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+
+<div style="text-align:center; padding: 24px 16px; font-size: 12px; color: var(--text-muted);">
+  © 2026 YaliDev. All rights reserved.
+</div>
+</body>
+</html>
