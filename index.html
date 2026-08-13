@@ -265,19 +265,23 @@
     </div>
     <div class="form-group">
       <label>תמונה של האופניים *</label>
-      <div class="img-upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+      <div class="img-upload-area" id="uploadArea">
         <div class="img-upload-icon">📷</div>
-        <div class="img-upload-text">לחץ לצילום או בחירת תמונה</div>
+        <div class="img-upload-text">תצוגה מקדימה תופיע כאן</div>
         <img class="img-preview" id="imgPreview" alt="תצוגה מקדימה">
         <div class="upload-progress" id="uploadProgress">
           <div class="upload-progress-bar" id="uploadProgressBar"></div>
         </div>
       </div>
       <span class="img-remove" id="imgRemove" onclick="removeImage(event)">✕ הסר תמונה</span>
-      <div style="font-size:11.5px; color:var(--text-muted); margin-top:6px; text-align:center;">
-        לא נפתחת המצלמה? ניתן לבחור תמונה מהגלריה, או לוודא בהגדרות הדפדפן שהאתר מורשה לגשת למצלמה
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button type="button" class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('fileInputCamera').click()">📷 צלם תמונה</button>
+        <button type="button" class="btn btn-secondary" style="flex:1;" onclick="document.getElementById('fileInputGallery').click()">🖼️ בחר מהגלריה</button>
       </div>
-      <input type="file" id="fileInput" accept="image/*" onchange="handleImageSelect(this)">
+      <!-- capture="environment" מכריח פתיחת מצלמה ישירה, בלי בורר מערכת -->
+      <input type="file" id="fileInputCamera" accept="image/*" capture="environment" onchange="handleImageSelect(this)" style="display:none;">
+      <!-- בלי capture - פותח את בורר הגלריה/קבצים הרגיל -->
+      <input type="file" id="fileInputGallery" accept="image/*" onchange="handleImageSelect(this)" style="display:none;">
     </div>
     <button class="btn btn-primary" onclick="submitRepair()" id="submitBtn">
       ✅ שלח קריאת שירות
@@ -533,6 +537,13 @@ async function submitRepair() {
     imageUrl = await uploadImage(ticketId);
     bar.style.width = '100%';
     setTimeout(() => { prog.style.display = 'none'; }, 400);
+
+    // אם ההעלאה נכשלה בפועל (בעיית רשת/הרשאות) - עוצרים ולא ממשיכים בלי תמונה
+    if (!imageUrl) {
+      showToast('העלאת התמונה נכשלה, נסה שוב', 'error');
+      btn.disabled = false; btn.textContent = '✅ שלח קריאת שירות';
+      return;
+    }
   }
 
   btn.textContent = 'שומר...';
