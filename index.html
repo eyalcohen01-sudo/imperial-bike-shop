@@ -216,14 +216,14 @@
     <div class="login-title">🚲 אימפריאל</div>
     <div class="login-sub">כניסת מנהל</div>
     <div class="form-group">
-      <label>שם משתמש</label>
-      <input type="text" id="loginUser" placeholder="הכנס שם משתמש">
+      <label>אימייל</label>
+      <input type="email" id="loginUser" placeholder="הכנס אימייל">
     </div>
     <div class="form-group">
       <label>סיסמה</label>
       <input type="password" id="loginPass" placeholder="הכנס סיסמה">
     </div>
-    <button class="btn btn-primary" onclick="doLogin()">כניסה למערכת</button>
+    <button class="btn btn-primary" id="loginBtn" onclick="doLogin()">כניסה למערכת</button>
     <div style="margin-top:16px; font-size:12px; color:var(--text-muted);">
       
     </div>
@@ -319,6 +319,7 @@
   <div class="admin-header">
     <div style="font-size:20px; font-weight:700; color:var(--green);">לוח ניהול תיקונים</div>
     <div style="display:flex; gap:8px;">
+      <button class="btn btn-secondary btn-sm" onclick="openHoursModal()">🕒 שעות פעילות</button>
       <button class="btn btn-secondary btn-sm" onclick="openCustomerHistory()">📜 היסטוריית לקוח</button>
       <button class="btn btn-secondary btn-sm" onclick="logout()">יציאה</button>
     </div>
@@ -383,6 +384,18 @@
   </div>
 </div>
 
+<!-- MODAL: STORE HOURS (admin edit) -->
+<div class="cert-overlay" id="hoursOverlay">
+  <div style="background:var(--card, #fff); border-radius:14px; padding:20px; max-width:420px; margin:60px auto; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+    <div style="font-weight:900; color:var(--green); font-size:17px; margin-bottom:12px;">🕒 עריכת שעות פעילות</div>
+    <textarea id="hoursTextarea" rows="6" style="width:100%; font-family:'Heebo',sans-serif; font-size:14px; padding:10px; border:1.5px solid var(--border); border-radius:8px; resize:vertical;" placeholder="לדוגמה:&#10;ראשון-חמישי: 09:00-19:00&#10;שישי: 09:00-14:00&#10;שבת: סגור"></textarea>
+    <div style="display:flex; gap:8px; margin-top:12px;">
+      <button class="btn btn-secondary" style="width:auto; flex:1;" onclick="closeHoursModal()">ביטול</button>
+      <button class="btn btn-primary" style="width:auto; flex:1;" id="hoursSaveBtn" onclick="saveHours()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
 <!-- PAGE: CUSTOMER HISTORY -->
 <div class="page" id="pageCustomerHistory">
   <div class="admin-header">
@@ -403,12 +416,10 @@ const BUCKET = 'repairs-images';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const ADMIN_USER = 'yalidev';
-const ADMIN_PASS = 'ZJ#G4vJbmjC48PTd';
-
 let allRepairs = [];
 let currentFilter = 'all';
 let selectedFile = null;
+let currentStatusData = null; // הקריאה הנוכחית שנטענה בדף מעקב הלקוח (לשימוש בפעולות אישור/דחייה/איסוף)
 
 // ===== INIT =====
 // מילוי אוטומטי של פרטי לקוח שנשמרו במכשיר (מונע טעויות הקלדה בפניות חוזרות)
@@ -430,13 +441,28 @@ window.onload = async () => {
   if (urlTicketId) localStorage.setItem('bike_ticket_id', urlTicketId);
 
   const ticketId = urlTicketId || localStorage.getItem('bike_ticket_id');
-  const isAdmin = sessionStorage.getItem('bike_admin');
+  const { data: { session } } = await db.auth.getSession();
+  const isAdmin = !!session;
   const isAdminUrl = window.location.search.includes('admin');
   if (isAdmin) { showAdminPage(); }
   else if (isAdminUrl) { goToAdmin(); }
   else if (ticketId) { showPage('pageStatus'); showHeader('מעקב קריאה'); loadStatus(ticketId); }
   else { showPage('pageForm'); showHeader('פתיחת קריאת שירות'); prefillCustomer(); }
 };
+
+// ===== מניעת סגירת האפליקציה בטעות בלחיצת "אחורה" =====
+// בלי זה, לחיצת אחורה (בעיקר כשמגיעים מקישור WhatsApp, בלי היסטוריית דפדפן) פשוט סוגרת את הטאב/אפליקציה.
+// כאן: לחיצת אחורה סוגרת מודל פתוח, או חוזרת לדף המתאים בתוך האפליקציה, ולעולם לא יוצאת ממנה.
+history.pushState({ imperialApp: true }, '');
+window.addEventListener('popstate', () => {
+  const overlay = document.getElementById('certOverlay');
+  if (overlay && overlay.classList.contains('show')) {
+    overlay.classList.remove('show');
+  } else if (document.getElementById('pageCustomerHistory').classList.contains('active')) {
+    showPage('pageAdmin'); showHeader('ניהול תיקונים');
+  }
+  history.pushState({ imperialApp: true }, '');
+});
 
 function showHeader(sub) {
   document.getElementById('mainHeader').style.display = 'flex';
@@ -589,13 +615,15 @@ async function checkStatus() {
 async function loadStatus(ticketId) {
   const content = document.getElementById('statusContent');
   content.innerHTML = '<div class="loading"><div class="spinner"></div>טוען...</div>';
-  const { data, error } = await db.from('repairs').select('*').eq('ticket_id', ticketId).eq('archived', false).single();
+  const { data: rows, error } = await db.rpc('get_repair_by_ticket', { p_ticket_id: ticketId });
+  const data = rows && rows[0];
   if (error || !data) {
     // הקריאה לא קיימת או הועברה לארכיון - מנקים ומחזירים לטופס פתיחת קריאה
     localStorage.removeItem('bike_ticket_id');
     content.innerHTML = '<div class="empty-state"><div class="empty-state-icon">❌</div><p>לא נמצאה קריאה פעילה</p></div>';
     return;
   }
+  currentStatusData = data; // נשמר לשימוש ב-approveQuote/rejectQuote/collectBike
 
   // ===== זרימת הצעת מחיר =====
   if (data.status === 'הצעת מחיר') {
@@ -624,8 +652,8 @@ async function loadStatus(ticketId) {
       // ההצעה מוכנה - הצגה + אישור/דחייה
       content.innerHTML = header + renderCertView(data.certificate, '💰 הצעת מחיר') + `
         <div class="quote-actions">
-          <button class="btn btn-primary" style="background:#10b981;" onclick="approveQuote('${data.id}')">✅ מאשר את ההצעה</button>
-          <button class="btn btn-danger" onclick="rejectQuote('${data.id}','${data.ticket_id}')">❌ לא מאשר</button>
+          <button class="btn btn-primary" style="background:#10b981;" onclick="approveQuote('${data.ticket_id}')">✅ מאשר את ההצעה</button>
+          <button class="btn btn-danger" onclick="rejectQuote('${data.ticket_id}')">❌ לא מאשר</button>
         </div>
         <p style="font-size:12px;color:var(--text-muted);margin-top:10px;text-align:center;">אישור יעביר את האופניים לתור התיקונים. דחייה תסגור את הפנייה.</p>`;
     }
@@ -667,12 +695,55 @@ async function loadStatus(ticketId) {
     ${data.status === 'מוכן' ? `
       <div style="background:var(--green-pale);border-radius:10px;padding:14px;text-align:center;font-weight:600;color:var(--green);margin-top:8px;">🎉 האופניים שלך מוכנים! מחכים לך בחנות</div>
       ${data.certificate ? renderCertView(data.certificate, '🧾 תעודת תיקון') : ''}
-      <button class="btn btn-primary" style="margin-top:16px;background:#10b981;" onclick="collectBike('${data.id}','${data.ticket_id}')">🙌 אספתי את האופניים</button>
+      <button class="btn btn-secondary" style="margin-top:10px;" onclick="toggleCustomerHours(this)">🕒 שעות פעילות לאיסוף</button>
+      <div id="customerHoursPanel" style="display:none; white-space:pre-line; background:var(--bg);border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-top:8px;font-size:14px;text-align:center;"></div>
+      <button class="btn btn-primary" style="margin-top:16px;background:#10b981;" onclick="collectBike('${data.ticket_id}')">🙌 אספתי את האופניים</button>
     ` : ''}
   `;
 }
 
-// תצוגת תעודה/הצעה ללקוח (קריאה בלבד)
+// ===== שעות פעילות (טבלת settings, שורה אחת עם key='hours') =====
+async function getStoreHours() {
+  const { data, error } = await db.from('settings').select('value').eq('key', 'hours').maybeSingle();
+  if (error || !data) return null;
+  return data.value;
+}
+
+async function openHoursModal() {
+  document.getElementById('hoursOverlay').classList.add('show');
+  document.getElementById('hoursTextarea').value = 'טוען...';
+  const hours = await getStoreHours();
+  document.getElementById('hoursTextarea').value = hours || '';
+}
+
+function closeHoursModal() {
+  document.getElementById('hoursOverlay').classList.remove('show');
+}
+
+async function saveHours() {
+  const value = document.getElementById('hoursTextarea').value.trim();
+  const btn = document.getElementById('hoursSaveBtn');
+  btn.disabled = true; btn.textContent = 'שומר...';
+  const { error } = await db.from('settings').upsert({ key: 'hours', value });
+  btn.disabled = false; btn.textContent = '💾 שמור';
+  if (error) { showToast('שגיאה בשמירת שעות הפעילות', 'error'); return; }
+  showToast('שעות הפעילות עודכנו', 'success');
+  closeHoursModal();
+}
+
+// תצוגה ללקוח - נטענת רק בלחיצה (לא מעכבת את טעינת הדף)
+async function toggleCustomerHours(btn) {
+  const panel = document.getElementById('customerHoursPanel');
+  if (panel.style.display === 'block') { panel.style.display = 'none'; return; }
+  panel.style.display = 'block';
+  if (!panel.dataset.loaded) {
+    const hours = await getStoreHours();
+    panel.textContent = hours || 'שעות הפעילות יתעדכנו בקרוב';
+    panel.dataset.loaded = '1';
+  }
+}
+
+
 function renderCertView(cert, title) {
   const lines = (cert.items || []).map(it => {
     const qty = it.q > 1 ? ` ×${it.q}` : '';
@@ -693,19 +764,18 @@ function renderCertView(cert, title) {
 }
 
 // ===== תגובת לקוח להצעת מחיר =====
-async function approveQuote(id) {
+async function approveQuote(ticketId) {
   if (!confirm('לאשר את הצעת המחיר? האופניים יעברו לתור התיקונים.')) return;
-  const { error } = await db.from('repairs').update({ status: 'חדש', quote_response: 'approved', response_at: new Date().toISOString() }).eq('id', id);
+  const { error } = await db.rpc('rpc_approve_quote', { p_ticket_id: ticketId });
   if (error) { showToast('שגיאה, נסה שוב', 'error'); return; }
   showToast('ההצעה אושרה! האופניים בתור לתיקון 🔧', 'success');
   loadStatus(localStorage.getItem('bike_ticket_id'));
 }
 
-async function rejectQuote(id, ticketId) {
+async function rejectQuote(ticketId) {
   if (!confirm('לדחות את הצעת המחיר? הפנייה תיסגר.')) return;
-  await db.from('repairs').update({ quote_response: 'rejected', response_at: new Date().toISOString() }).eq('id', id);
-  const { data } = await db.from('repairs').select('image_url').eq('id', id).single();
-  const error = await archiveRepair(id, ticketId, data ? data.image_url : null);
+  await archiveImage(ticketId, currentStatusData ? currentStatusData.image_url : null);
+  const { error } = await db.rpc('rpc_reject_quote', { p_ticket_id: ticketId });
   if (error) { showToast('שגיאה, נסה שוב', 'error'); return; }
   localStorage.removeItem('bike_ticket_id');
   showToast('הפנייה נסגרה. נשמח לראותך בעתיד 🚲', 'success');
@@ -750,11 +820,11 @@ async function archiveRepair(id, ticketId, imageUrl) {
   return error;
 }
 
-async function collectBike(id, ticketId) {
+async function collectBike(ticketId) {
   if (!confirm('האם אתה בטוח שאספת את האופניים?')) return;
   // ארכוב במקום מחיקה - הקריאה נשמרת בהיסטוריית הלקוח
-  const { data } = await db.from('repairs').select('image_url').eq('id', id).single();
-  const error = await archiveRepair(id, ticketId, data ? data.image_url : null);
+  await archiveImage(ticketId, currentStatusData ? currentStatusData.image_url : null);
+  const { error } = await db.rpc('rpc_collect_bike', { p_ticket_id: ticketId });
   if (error) { showToast('שגיאה, נסה שוב', 'error'); return; }
   // ניקוי localStorage
   localStorage.removeItem('bike_ticket_id');
@@ -769,11 +839,15 @@ function goToAdmin() {
   document.getElementById('loginPage').style.display = 'flex';
 }
 
-function doLogin() {
+async function doLogin() {
   const u = document.getElementById('loginUser').value;
   const p = document.getElementById('loginPass').value;
-  if (u === ADMIN_USER && p === ADMIN_PASS) { sessionStorage.setItem('bike_admin', '1'); showAdminPage(); }
-  else showToast('פרטי כניסה שגויים', 'error');
+  const btn = document.getElementById('loginBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'מתחבר...'; }
+  const { error } = await db.auth.signInWithPassword({ email: u, password: p });
+  if (btn) { btn.disabled = false; btn.textContent = 'התחבר'; }
+  if (error) { showToast('פרטי כניסה שגויים', 'error'); return; }
+  showAdminPage();
 }
 
 function showAdminPage() {
@@ -781,8 +855,8 @@ function showAdminPage() {
   showHeader('ניהול תיקונים'); showPage('pageAdmin'); loadRepairs();
 }
 
-function logout() {
-  sessionStorage.removeItem('bike_admin');
+async function logout() {
+  await db.auth.signOut();
   document.getElementById('mainHeader').style.display = 'none';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('loginPage').style.display = 'flex';
@@ -894,14 +968,17 @@ function renderRepairs() {
 
 // ===== תעודת תיקון / הצעת מחיר (מנהל) =====
 const CERT_ITEMS = ["טיפול ה/ב","פנימית ק/א","חומר ק/א","פס גומי / סרט ק/א","טיובלס / ונטיל ק/א","צמיג ק/א סוג","כבל הילוכים ק/א","מוביל הילוכים ק/א","כבל בלם ק/א","מוביל כבל בלם ק/א","קסטה / פרילופ","שרשרת","קראנק","זרוע פדל","פדלים","אוזן/יישור","מעביר הילוכים ק/א","שיפטר ק/א","אוכף","ידית בלם ק/א","רוטור ק/א","דיסק ק/א","קליפר ק/א","רפידות בלם ק/א","קשת בלם ק/א","בלידינג ק/א","גלגל ק/א חופש","ציר גלגל ק/א","שמיניות ק/א","BB","גריפים","רגלית","סוללה","ידית בלם חשמלי ק/א","צג חשמלי","ידית גז","מסילה","סוויץ'"];
+// סדר התצוגה בטופס (א'-ב') - נפרד מהמערך המקורי בכוונה, כדי לא לשנות את האינדקסים
+// שכבר שמורים בתעודות קיימות ב-DB (כל תעודה שמורה מפנה לפריט לפי המספר הסידורי שלו במערך המקורי)
+const CERT_DISPLAY_ORDER = CERT_ITEMS.map((_, i) => i).sort((a, b) => CERT_ITEMS[a].localeCompare(CERT_ITEMS[b], 'he'));
 
 let certRepairId = null;   // הקריאה שהתעודה שייכת לה
 let certMode = 'final';    // 'final' = תעודת תיקון, 'quote' = הצעת מחיר
 
 function buildCertRows() {
-  const half = Math.ceil(CERT_ITEMS.length / 2);
-  const col = (from, to) => CERT_ITEMS.slice(from, to).map((name, j) => {
-    const i = from + j;
+  const half = Math.ceil(CERT_DISPLAY_ORDER.length / 2);
+  const col = (from, to) => CERT_DISPLAY_ORDER.slice(from, to).map(i => {
+    const name = CERT_ITEMS[i];
     return `<div class="cert-item-row">
       <label class="cert-item-name">${name}</label>
       <input type="number" min="0" step="1" placeholder="כמות" id="certQ${i}" oninput="calcCert()">
@@ -909,7 +986,7 @@ function buildCertRows() {
       <span class="cert-line-total" id="certT${i}"></span>
     </div>`;
   }).join('');
-  document.getElementById('certItems').innerHTML = `<div>${col(0, half)}</div><div>${col(half, CERT_ITEMS.length)}</div>`;
+  document.getElementById('certItems').innerHTML = `<div>${col(0, half)}</div><div>${col(half, CERT_DISPLAY_ORDER.length)}</div>`;
 }
 
 function calcCert() {
