@@ -414,7 +414,12 @@ const SUPABASE_URL = 'https://mdebqivawvmuprcmjbxj.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_LdfXq3DnLGdPZ_aHJ6mREA_k8CMFu--';
 const BUCKET = 'repairs-images';
 const { createClient } = supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+// שימוש ב-sessionStorage (במקום ברירת המחדל localStorage) - כך התחברות אדמין
+// נשארת רק בטאב/חלון הנוכחי ומתנקה אוטומטית בטאב חדש/סגירת הדפדפן,
+// כמו ההתנהגות הקודמת - אך עדיין עם אימות אמיתי מול Supabase (לא רק דגל בקוד).
+const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { storage: window.sessionStorage }
+});
 
 let allRepairs = [];
 let currentFilter = 'all';
@@ -517,7 +522,9 @@ async function uploadImage(ticketId) {
   if (!selectedFile) return null;
   const ext = 'jpg';
   const path = `${ticketId}.${ext}`;
-  const { error } = await db.storage.from(BUCKET).upload(path, selectedFile, { upsert: true });
+  // upsert: false - זו תמיד קריאה חדשה עם ticket_id ייחודי אקראי, אין קובץ קיים לדרוס.
+  // (upsert:true היה דורש הרשאת SELECT כדי לבדוק קיום קובץ - הרשאה שנחסמה היום מטעמי אבטחה)
+  const { error } = await db.storage.from(BUCKET).upload(path, selectedFile, { upsert: false });
   if (error) { console.error(error); return null; }
   const { data } = db.storage.from(BUCKET).getPublicUrl(path);
   return data.publicUrl;
@@ -795,7 +802,9 @@ function newRepair() {
 }
 
 // ===== ARCHIVE =====
-// כיווץ תמונת הקריאה לגרסת ארכיון קטנה (~300px) והחלפתה ב-Storage באותו נתיב
+// כיווץ תמונת הקריאה לגרסת ארכיון קטנה (~300px) - הכיווץ קורה בדפדפן כרגיל,
+// אבל ההעלאה בפועל (דריסת הקובץ הקיים) עוברת דרך Netlify Function עם הרשאות שרת,
+// כי דריסת קובץ (upsert) דורשת הרשאת SELECT שנחסמה מהלקוח מטעמי אבטחה.
 async function archiveImage(ticketId, imageUrl) {
   if (!imageUrl) return;
   try {
@@ -809,7 +818,21 @@ async function archiveImage(ticketId, imageUrl) {
     canvas.height = Math.max(1, Math.round(bmp.height * scale));
     canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
     const small = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.5));
-    if (small) await db.storage.from(BUCKET).upload(`${ticketId}.jpg`, small, { upsert: true });
+    if (!small) return;
+
+    // המרה ל-base64 לצורך שליחה כ-JSON ל-Netlify Function
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(small);
+    });
+
+    await fetch('/.netlify/functions/archive-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticketId, imageBase64: base64 }),
+    });
   } catch (e) { console.error('archive image failed', e); }
 }
 
