@@ -511,7 +511,8 @@ function handleImageSelect(input) {
 function removeImage(e) {
   e.stopPropagation();
   selectedFile = null;
-  document.getElementById('fileInput').value = '';
+  document.getElementById('fileInputCamera').value = '';
+  document.getElementById('fileInputGallery').value = '';
   document.getElementById('imgPreview').src = '';
   document.getElementById('imgPreview').classList.remove('show');
   document.getElementById('imgRemove').classList.remove('show');
