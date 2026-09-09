@@ -367,6 +367,10 @@
       </div>
     </div>
     <div class="cert-items" id="certItems"></div>
+    <div id="customRowsSection" style="margin-bottom:8px; border-top:1px dashed var(--border); padding-top:8px;">
+      <div id="customRowsContainer"></div>
+      <button type="button" class="btn btn-secondary btn-sm" style="width:auto; margin-top:6px;" onclick="addCustomRow()">＋ הוסף שורה</button>
+    </div>
     <div class="cert-bottom">
       <div class="cert-notes">
         <label style="display:block; font-size:12px; font-weight:700; color:var(--green); margin-bottom:3px;">הערות</label>
@@ -754,8 +758,9 @@ async function toggleCustomerHours(btn) {
 
 function renderCertView(cert, title) {
   const lines = (cert.items || []).map(it => {
+    const label = it.name !== undefined ? it.name : CERT_ITEMS[it.i];
     const qty = it.q > 1 ? ` ×${it.q}` : '';
-    return `<div class="cert-view-row"><span>${CERT_ITEMS[it.i]}${qty}</span><span style="direction:ltr;">₪${(it.p * (it.q || 1)).toLocaleString()}</span></div>`;
+    return `<div class="cert-view-row"><span>${label}${qty}</span><span style="direction:ltr;">₪${(it.p * (it.q || 1)).toLocaleString()}</span></div>`;
   }).join('');
   const meta = [];
   if (cert.bikeType) meta.push(`סוג: ${cert.bikeType}`);
@@ -1022,8 +1027,35 @@ function calcCert() {
     document.getElementById('certT' + i).textContent = line > 0 ? '₪' + line.toLocaleString() : '';
     sum += line;
   }
+  document.querySelectorAll('#customRowsContainer .cert-item-row').forEach(row => {
+    const q = parseFloat(row.querySelector('.custom-qty').value);
+    const p = parseFloat(row.querySelector('.custom-price').value);
+    const line = (p > 0) ? p * (q > 0 ? q : 1) : 0;
+    row.querySelector('.custom-total').textContent = line > 0 ? '₪' + line.toLocaleString() : '';
+    sum += line;
+  });
   document.getElementById('certGrandTotal').textContent = '₪' + sum.toLocaleString();
   return sum;
+}
+
+function addCustomRow(prefill = {}) {
+  const container = document.getElementById('customRowsContainer');
+  const row = document.createElement('div');
+  row.className = 'cert-item-row';
+  row.style.gridTemplateColumns = '1fr 60px 80px 66px 28px';
+  row.innerHTML = `
+    <input type="text" class="custom-name" placeholder="תיאור פריט..." style="text-align:right; font-size:13px;" dir="rtl">
+    <input type="number" class="custom-qty" min="0" step="1" placeholder="כמות">
+    <input type="number" class="custom-price" min="0" step="0.5" placeholder="מחיר ₪">
+    <span class="cert-line-total custom-total"></span>
+    <button type="button" onclick="this.closest('.cert-item-row').remove(); calcCert();" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:16px;padding:0;line-height:1;" title="הסר שורה">✕</button>
+  `;
+  if (prefill.name) row.querySelector('.custom-name').value = prefill.name;
+  if (prefill.q > 1) row.querySelector('.custom-qty').value = prefill.q;
+  if (prefill.p) row.querySelector('.custom-price').value = prefill.p;
+  row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', calcCert));
+  container.appendChild(row);
+  calcCert();
 }
 
 function openCertModal(repairId, mode) {
@@ -1043,6 +1075,9 @@ function openCertModal(repairId, mode) {
   document.getElementById('certElectric').value = '';
   document.getElementById('certNotes').value = '';
 
+  // ניקוי שורות חופשיות מהפעם הקודמת
+  document.getElementById('customRowsContainer').innerHTML = '';
+
   // טעינת תעודה קיימת (עריכה, או הצעה מאושרת כבסיס לתעודה הסופית)
   const cert = r.certificate;
   if (cert) {
@@ -1050,8 +1085,12 @@ function openCertModal(repairId, mode) {
     document.getElementById('certElectric').value = cert.electric || '';
     document.getElementById('certNotes').value = cert.notes || '';
     (cert.items || []).forEach(it => {
-      if (it.q > 1) document.getElementById('certQ' + it.i).value = it.q;
-      document.getElementById('certP' + it.i).value = it.p;
+      if (it.name !== undefined) {
+        addCustomRow(it);
+      } else {
+        if (it.q > 1) document.getElementById('certQ' + it.i).value = it.q;
+        document.getElementById('certP' + it.i).value = it.p;
+      }
     });
   }
   calcCert();
@@ -1071,6 +1110,12 @@ async function saveCert() {
     const p = parseFloat(document.getElementById('certP' + i).value);
     if (p > 0) items.push({ i, q: (q > 0 ? q : 1), p });
   }
+  document.querySelectorAll('#customRowsContainer .cert-item-row').forEach(row => {
+    const name = row.querySelector('.custom-name').value.trim();
+    const q = parseFloat(row.querySelector('.custom-qty').value);
+    const p = parseFloat(row.querySelector('.custom-price').value);
+    if (name && p > 0) items.push({ name, q: (q > 0 ? q : 1), p });
+  });
   const cert = {
     date: new Date().toLocaleString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }),
     bikeType: document.getElementById('certBikeType').value.trim(),
